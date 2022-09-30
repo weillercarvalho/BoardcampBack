@@ -93,12 +93,14 @@ server.post("/games", async (req, res) => {
   }
 });
 
+const capitalize = s => s && s[0].toUpperCase() + s.slice(1);
+
 server.get("/games", async (req, res) => {
     const {name} = req.query;
   try {
     if (name) {
-        const querys = await connection.query(`SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId" = categories.id WHERE games.name LIKE ('%' || $1 || '%');
-        `, [name]);
+        const querys = await connection.query(`SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId" = categories.id WHERE games.name LIKE ($1 || '%');
+        `, [capitalize(name)]);
         return res.send(querys.rows);
     }
       const query =
