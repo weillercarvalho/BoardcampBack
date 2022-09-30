@@ -1,58 +1,115 @@
-import express from 'express';
-import pg from 'pg';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import joi from 'joi';
-import {stripHtml} from 'string-strip-html';
+import express from "express";
+import pg from "pg";
+import dotenv from "dotenv";
+import cors from "cors";
+import joi from "joi";
+import { stripHtml } from "string-strip-html";
 
 dotenv.config();
 
-const {Pool} = pg;
+const { Pool } = pg;
 
-const connection  = new Pool({
-    connectionString: process.env.DATABASE_URL,
-})
+const connection = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 const server = express();
-server.use(cors())
+server.use(cors());
 server.use(express.json());
 
 const postCategoriesSchema = joi.object({
-    name: joi.string().empty(" ").min(1).max(50).required()
-})
+  name: joi.string().empty(" ").min(1).max(50).required(),
+});
 
 const postGamesSchema = joi.object({
-    name: joi.string().empty(" ").min(1).max(50).required(),
-    image: joi.string().email({ minDomainSegments: 2, tlds: { allow: ['com', 'net', 'br'] } }).empty(" ").min(1).max(5000).required(),
-    stockTotal: joi.number().required(),
-    categoryId: joi.number().required(),
-    pricePerDay: joi.number().required()
-})
+  name: joi.string().empty(" ").min(1).max(50).required(),
+  image: joi.string().empty(" ").min(1).max(5000).required(),
+  stockTotal: joi.number().greater(0).required(),
+  categoryId: joi.number().required(),
+  pricePerDay: joi.number().greater(0).required(),
+});
 
-server.post('/categories', async (req,res) => {
-    const {name} = req.body;
-    const newname = stripHtml(name).result.trim();
-    const validation = postCategoriesSchema.validate(req.body);
-    if (validation.error) {
-        return res.status(400);
+server.post("/categories", async (req, res) => {
+  const { name } = req.body;
+  const newname = stripHtml(name).result.trim();
+  const validation = postCategoriesSchema.validate(req.body, {
+    abortEarly: false,
+  });
+  if (validation.error) {
+    return res.status(400);
+  }
+  try {
+    const getting = await connection.query(
+      "SELECT * FROM categories WHERE name = $1;",
+      [newname]
+    );
+    if (getting.rows.length > 0) {
+      return res.sendStatus(409);
     }
-    try {
-        const getting = (await connection.query('SELECT * FROM categories WHERE name = $1',[newname]));
-        if(getting.rows.length > 0) {
-            return res.sendStatus(409);
-        }
-        const query = await connection.query('INSERT INTO categories (name) VALUES($1);',[newname]);
-        return res.sendStatus(201);
-    } catch (error) {
-        return res.status(500).send(error.message);
-    }
-})
+    const query = await connection.query(
+      "INSERT INTO categories (name) VALUES($1);",
+      [newname]
+    );
+    return res.sendStatus(201);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+});
 
-server.get('/categories', async (req,res) => {
-    const query = await connection.query('SELECT * FROM categories;');
-    res.send(query.rows)
-})
+server.get("/categories", async (req, res) => {
+  const query = await connection.query("SELECT * FROM categories;");
+  res.send(query.rows);
+});
+
+server.post("/games", async (req, res) => {
+  const { name, image, stockTotal, categoryId, pricePerDay } = req.body;
+  const newname = stripHtml(name).result.trim();
+  const validation = postGamesSchema.validate(req.body, { abortEarly: false });
+  if (validation.error) {
+    return res.sendStatus(400);
+  }
+  try {
+    const gettingId = await connection.query(
+      "SELECT * FROM categories WHERE id = $1;",
+      [categoryId]
+    );
+    if (gettingId.rows.length === 0) {
+      return res.sendStatus(400);
+    }
+    const gettingName = await connection.query(
+      "SELECT * FROM games WHERE name = $1;",
+      [newname]
+    );
+    if (gettingName.rows.length > 0) {
+      return res.sendStatus(409);
+    }
+    const query = connection.query(
+      `INSERT INTO games (name,image,"stockTotal","categoryId","pricePerDay") VALUES ($1,$2,$3,$4,$5);`,
+      [name, image, stockTotal, categoryId, pricePerDay]
+    );
+    res.sendStatus(201);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+});
+
+server.get("/games", async (req, res) => {
+    const {name} = req.query;
+  try {
+    if (name) {
+        const querys = await connection.query(`SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId" = categories.id WHERE games.name LIKE ('%' || $1 || '%');
+        `, [name]);
+        return res.send(querys.rows);
+    }
+      const query =
+    await connection.query(`SELECT games.*, categories.name AS "categoryName" FROM games JOIN categories ON games."categoryId" = categories.id;
+    `);
+    return res.send(query.rows);
+  } catch (error) {
+    return res.status(500).send(error.message)
+  }
+});
 
 server.listen(4000, () => {
-    console.log(`Listening on the 4000.`)
-})
+  console.log(`Listening on the 4000.`);
+});
