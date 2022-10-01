@@ -45,6 +45,12 @@ const putCustomersSchema = joi.object({
 })
 
 
+const postRentalsSchema = joi.object({
+  customerId: joi.number().required(),
+  gameId: joi.number().required(),
+  daysRented: joi.number().greater(0).required() 
+})
+
 server.post("/categories", async (req, res) => {
   const { name } = req.body;
   const newname = stripHtml(name).result.trim();
@@ -164,8 +170,6 @@ server.get("/customers", async (req,res) => {
   }
 })
 
-
-
 server.put("/customers/:id", async (req,res) => {
   const {id} = req.params;
   const {name, phone, cpf, birthday} = req.body;
@@ -178,23 +182,60 @@ server.put("/customers/:id", async (req,res) => {
   else if ((isNaN(phoneNumber) === true)) {
     return res.sendStatus(400)
   }
-  const validation = postCustomersSchema.validate(req.body, {abortEarly:false});
+  const validation = putCustomersSchema.validate(req.body, {abortEarly:false});
   if (validation.error) {
     return res.sendStatus(400)
   }
   try {
-    const getting = await connection.query(`SELECT * FROM customers WHERE cpf = $1`,[cpf]);
+    const getting = await connection.query(`SELECT * FROM customers WHERE cpf = $1;`,[cpf]);
     if (getting.rows.length > 0) {
       return res.sendStatus(409)
     }
-    const query = await connection.query(`UPDATE customers SET name = $1, phone = $2, cpf = $3, birthday = $4 WHERE id = $5`,[newname, phone, cpf, birthday, id]);
+    const query = await connection.query(`UPDATE customers SET name = $1, phone = $2, cpf = $3, birthday = $4 WHERE id = $5;`,[newname, phone, cpf, birthday, id]);
     return res.sendStatus(200)
   } catch (error) {
     return res.status(500).send(error.message);
   }
 })
 
+server.post("/rentals", async (req,res) => {
+  const date = new Date();
+  const {customerId, gameId, daysRented} = req.body;
+  const validation = postRentalsSchema.validate(req.body,{abortEarly:false});
+  if (validation.error) {
+    return res.sendStatus(400);
+  }
+  const gettingGameId = await connection.query(`SELECT * FROM games WHERE id = $1;`,[gameId]);
+  if (gettingGameId.rows.length === 0) {
+    return res.sendStatus(400);
+  }
+  const gettingCustomerId = await connection.query(`SELECT * FROM customers WHERE Id = $1;`,[customerId]);
+  if (gettingCustomerId.rows.length === 0) {
+    return res.sendStatus(400);
+  }
+  const gettingGamesAll = await connection.query(`SELECT * FROM games;`);
+  const gettingRentalsAll = await connection.query(`SELECT * FROM rentals;`)
+  if (gettingGamesAll.rows.length < gettingRentalsAll.rows.length) {
+    return res.sendStatus(400);
+  }
+  try {
+    const gettingGame = (await connection.query(`SELECT games."pricePerDay" FROM games;`)).rows[0];
+    const query = await connection.query(`INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES ($1, $2, $3, $4, $5, $6, $7);`, [customerId, gameId, date, daysRented, null, gettingGame.pricePerDay * daysRented, null]);
+    return res.sendStatus(201)
+  } catch (error) {
+    res.status(500).send(error.message)
+  }
+})
 
+server.get("/rentals", async (req,res) => {
+  // CONTINUAR DAQUI
+  try {
+    const query = await connection.query(`SELECT * FROM rentals;`);
+    return res.send(query.rows);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+})
 
 server.listen(4000, () => {
   console.log(`Listening on the 4000.`);
