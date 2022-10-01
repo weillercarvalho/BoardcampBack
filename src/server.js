@@ -5,6 +5,7 @@ import cors from "cors";
 import joi from "joi";
 import { stripHtml } from "string-strip-html";
 
+
 dotenv.config();
 
 const { Pool } = pg;
@@ -28,6 +29,15 @@ const postGamesSchema = joi.object({
   categoryId: joi.number().required(),
   pricePerDay: joi.number().greater(0).required(),
 });
+
+
+
+const postCustomersSchema = joi.object({
+  name: joi.string().empty(" ").min(1).max(50).required(),
+  phone: joi.string().min(10).max(11).required(),
+  cpf: joi.string().length(11).pattern(/^[0-9]+$/).required(),
+  birthday: joi.date().iso()
+})
 
 server.post("/categories", async (req, res) => {
   const { name } = req.body;
@@ -111,6 +121,50 @@ server.get("/games", async (req, res) => {
     return res.status(500).send(error.message)
   }
 });
+
+server.post("/customers", async (req,res) => {
+  const {name, phone, cpf, birthday} = req.body;
+  const newname = stripHtml(name).result.trim();
+  const cpfNumber = parseInt(cpf,10);
+  const phoneNumber = parseInt(phone,10);
+  if (isNaN(cpfNumber) === true) {
+    return res.sendStatus(400)
+  }
+  else if ((isNaN(phoneNumber) === true)) {
+    return res.sendStatus(400)
+  }
+  const validation = postCustomersSchema.validate(req.body, {abortEarly:false});
+  if (validation.error) {
+    return res.sendStatus(400)
+  }
+  try {
+    const getting = await connection.query(`SELECT * FROM customers WHERE cpf = $1`,[cpf]);
+    if (getting.rows.length > 0) {
+      return res.sendStatus(409)
+    }
+    const query = await connection.query(`INSERT INTO customers (name,phone,cpf,birthday) VALUES($1,$2,$3,$4)`,[newname, phone, cpf, birthday]);
+    return res.sendStatus(201)
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+})
+
+server.get("/customers", async (req,res) => {
+  try {
+    const query = await connection.query(`SELECT * FROM customers;`);
+    return res.send(query.rows);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+})
+
+
+
+server.put("/customers", async (req,res) => {
+  // CONTINUO AMANHA DAQUI
+})
+
+
 
 server.listen(4000, () => {
   console.log(`Listening on the 4000.`);
