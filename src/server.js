@@ -30,14 +30,20 @@ const postGamesSchema = joi.object({
   pricePerDay: joi.number().greater(0).required(),
 });
 
-
-
 const postCustomersSchema = joi.object({
   name: joi.string().empty(" ").min(1).max(50).required(),
   phone: joi.string().min(10).max(11).required(),
   cpf: joi.string().length(11).pattern(/^[0-9]+$/).required(),
   birthday: joi.date().iso()
 })
+
+const putCustomersSchema = joi.object({
+  name: joi.string().empty(" ").min(1).max(50).required(),
+  phone: joi.string().min(10).max(11).required(),
+  cpf: joi.string().length(11).pattern(/^[0-9]+$/).required(),
+  birthday: joi.date().iso()
+})
+
 
 server.post("/categories", async (req, res) => {
   const { name } = req.body;
@@ -160,8 +166,32 @@ server.get("/customers", async (req,res) => {
 
 
 
-server.put("/customers", async (req,res) => {
-  // CONTINUO AMANHA DAQUI
+server.put("/customers/:id", async (req,res) => {
+  const {id} = req.params;
+  const {name, phone, cpf, birthday} = req.body;
+  const newname = stripHtml(name).result.trim();
+  const cpfNumber = parseInt(cpf,10);
+  const phoneNumber = parseInt(phone,10);
+  if (isNaN(cpfNumber) === true) {
+    return res.sendStatus(400)
+  }
+  else if ((isNaN(phoneNumber) === true)) {
+    return res.sendStatus(400)
+  }
+  const validation = postCustomersSchema.validate(req.body, {abortEarly:false});
+  if (validation.error) {
+    return res.sendStatus(400)
+  }
+  try {
+    const getting = await connection.query(`SELECT * FROM customers WHERE cpf = $1`,[cpf]);
+    if (getting.rows.length > 0) {
+      return res.sendStatus(409)
+    }
+    const query = await connection.query(`UPDATE customers SET name = $1, phone = $2, cpf = $3, birthday = $4 WHERE id = $5`,[newname, phone, cpf, birthday, id]);
+    return res.sendStatus(200)
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
 })
 
 
