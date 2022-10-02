@@ -115,7 +115,7 @@ server.post("/games", async (req, res) => {
   }
 });
 
-const capitalize = s => s && s[0].toUpperCase() + s.slice(1);
+const capitalize = s => s && s[0].toUpperCase() + s.slice(1).toLowerCase();
 
 server.get("/games", async (req, res) => {
     const {name} = req.query;
@@ -228,9 +228,18 @@ server.post("/rentals", async (req,res) => {
 })
 
 server.get("/rentals", async (req,res) => {
-  // CONTINUAR DAQUI
+  const {customerId} = req.query;
+  const {gameId} = req.query;
   try {
-    const query = await connection.query(`SELECT * FROM rentals;`);
+    if (customerId) {
+      const query = await connection.query(`SELECT rentals.*, json_build_object('id', customers.id, 'name', customers.name) AS customer, json_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON rentals."gameId" = games.id JOIN categories ON games."categoryId" = categories.id WHERE customers.id = $1;`,[customerId]);
+      return res.send(query.rows);
+    }
+    if (gameId) {
+      const query = await connection.query(`SELECT rentals.*, json_build_object('id', customers.id, 'name', customers.name) AS customer, json_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON rentals."gameId" = games.id JOIN categories ON games."categoryId" = categories.id WHERE games.id = $1;`,[gameId]);
+      return res.send(query.rows);
+    }
+    const query = await connection.query(`SELECT rentals.*, json_build_object('id', customers.id, 'name', customers.name) AS customer, json_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON rentals."gameId" = games.id JOIN categories ON games."categoryId" = categories.id;`);
     return res.send(query.rows);
   } catch (error) {
     return res.status(500).send(error.message);
