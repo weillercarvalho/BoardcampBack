@@ -200,6 +200,7 @@ server.put("/customers/:id", async (req,res) => {
 
 server.post("/rentals", async (req,res) => {
   const date = new Date();
+  date.setHours(0,0,0,0);
   const {customerId, gameId, daysRented} = req.body;
   const validation = postRentalsSchema.validate(req.body,{abortEarly:false});
   if (validation.error) {
@@ -244,6 +245,39 @@ server.get("/rentals", async (req,res) => {
   } catch (error) {
     return res.status(500).send(error.message);
   }
+})
+
+server.post("/rentals/:id/return", async (req,res) => {
+  const {id} = req.params;
+  const date = new Date();
+  date.setHours(0,0,0,0);
+  const gettingId = await connection.query(`SELECT * FROM rentals WHERE id = $1;`,[id]);
+  if (gettingId.rows.length === 0) {
+    return res.sendStatus(404);
+  }
+  const gettingDateFee = (await connection.query(`SELECT rentals."delayFee" FROM rentals WHERE id = $1;`,[id])).rows[0];
+  if (gettingDateFee.delayFee !== null) {
+    return res.sendStatus(400);
+  }
+  const gettingDateRent = (await connection.query(`SELECT rentals."rentDate" FROM rentals WHERE id = $1;`,[id])).rows[0];
+  const gettingDaysRented = (await connection.query(`SELECT rentals."daysRented" FROM rentals WHERE id = $1;`, [id])).rows[0];
+  const gettingOriginalPrice = (await connection.query(`SELECT rentals."originalPrice" FROM rentals WHERE id = $1;`, [id])).rows[0];
+  const differenceDays = ((date - gettingDateRent.rentDate) / (60 * 60 * 24 * 1000));
+  let finalFee = 0;
+  if (differenceDays > gettingDaysRented.daysRented) {
+    finalFee = (gettingOriginalPrice.originalPrice / gettingDaysRented.daysRented) * (differenceDays - gettingDaysRented.daysRented);
+  }
+  try {
+    const query = await connection.query(`UPDATE rentals SET "returnDate" = $1, "delayFee" = $2 WHERE id = $3;`,[date, finalFee, id]);
+    return res.sendStatus(200);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
+})
+
+server.delete("/rentals/:id", async (req,res) => {
+  // FALTA ISSO E UNS 2 BONUS, FAZER A ARQUITETURA E TESTAR COM O FRONT.
+  res.send(`Salve`)
 })
 
 server.listen(4000, () => {
