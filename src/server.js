@@ -79,8 +79,36 @@ server.post("/categories", async (req, res) => {
 });
 
 server.get("/categories", async (req, res) => {
-  const query = await connection.query("SELECT * FROM categories;");
-  res.send(query.rows);
+  const {order, desc} = req.query;
+  console.log(order,desc)
+
+  try {
+    if(order === undefined) {
+      const query = await connection.query("SELECT * FROM categories;");
+      return res.send(query.rows);
+    }
+    if (order === 'name') {
+      const query = await connection.query("SELECT * FROM categories ORDER BY $1;",[order]);
+      return res.send(query.rows);
+    }
+    if (order === 'id') {
+      const query = await connection.query("SELECT * FROM categories ORDER BY $1;",[order]);
+      return res.send(query.rows);
+    }
+    if (order === 'name' && desc === 'true') {
+      const query = await connection.query("SELECT * FROM categories ORDER BY $1 DESC;",[order]);
+      return res.send(query.rows);
+    }
+    if (order === 'id' && desc === 'true') {
+      const query = await connection.query("SELECT * FROM categories ORDER BY $1 DESC;",[order]);
+      return res.send(query.rows);
+    }
+    else {
+      return res.status(422).send({message: `Query String invalida.`})
+    }
+  } catch (error) {
+    return res.status(500).send(error.message)
+  }
 });
 
 server.post("/games", async (req, res) => {
