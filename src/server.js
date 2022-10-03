@@ -240,8 +240,17 @@ server.get("/rentals", async (req,res) => {
       const query = await connection.query(`SELECT rentals.*, json_build_object('id', customers.id, 'name', customers.name) AS customer, json_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON rentals."gameId" = games.id JOIN categories ON games."categoryId" = categories.id WHERE games.id = $1;`,[gameId]);
       return res.send(query.rows);
     }
-    const query = await connection.query(`SELECT rentals.*, json_build_object('id', customers.id, 'name', customers.name) AS customer, json_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON rentals."gameId" = games.id JOIN categories ON games."categoryId" = categories.id;`);
-    return res.send(query.rows);
+    else {
+      const query = await connection.query(`SELECT rentals.*, json_build_object('id', customers.id, 'name', customers.name) AS customer, json_build_object('id', games.id, 'name', games.name, 'categoryId', games."categoryId", 'categoryName', categories.name) AS game FROM rentals JOIN customers ON rentals."customerId" = customers.id JOIN games ON rentals."gameId" = games.id JOIN categories ON games."categoryId" = categories.id;`);
+      query.rows.forEach(value => {
+        value.rentDate = value.rentDate.toISOString().split('T')[0];
+        if (value.returnDate !== null) {
+          value.returnDate = value.returnDate.toISOString().split('T')[0];
+        }
+      })
+      return res.send(query.rows)
+    }
+
   } catch (error) {
     return res.status(500).send(error.message);
   }
@@ -276,8 +285,22 @@ server.post("/rentals/:id/return", async (req,res) => {
 })
 
 server.delete("/rentals/:id", async (req,res) => {
-  // FALTA ISSO E UNS 2 BONUS, FAZER A ARQUITETURA E TESTAR COM O FRONT.
-  res.send(`Salve`)
+  const {id} = req.params;
+  const gettingId = (await connection.query(`SELECT * FROM rentals WHERE id = $1;`,[id])).rows;
+
+  if (gettingId.length === 0) {
+    return res.sendStatus(404)
+  }
+  const gettingDate = (await connection.query(`SELECT rentals."returnDate" FROM rentals WHERE id = $1;`, [id])).rows[0];
+  if (gettingDate.returnDate === null) {
+    return res.sendStatus(400);
+  }
+  try {
+    const query = (await connection.query(`DELETE FROM rentals WHERE id = $1`, [id]));
+    return res.sendStatus(200)
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
 })
 
 server.listen(4000, () => {
