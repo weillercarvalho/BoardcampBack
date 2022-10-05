@@ -17,6 +17,6 @@ server.use(gamesRouter);
 server.use(customersRouter);
 server.use(rentalRouter);
 
-server.listen(4000, () => {
+server.listen(process.env.PORT, () => {
   console.log(`Listening on the 4000.`);
 });
